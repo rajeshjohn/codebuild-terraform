@@ -1,13 +1,18 @@
-data "aws_s3_bucket" "selected" {
+resource "aws_s3_bucket" "codebuild-cache" {
   bucket = "rajesh-codebuild-cache"
 }
 
+resource "aws_s3_bucket_acl" "example" {
+  bucket = aws_s3_bucket.codebuild-cache.id
+  acl    = "private"
+}
 
 resource "aws_codebuild_project" "codebuild-java-app-via-terraform" {
   name          = "codebuild-java-terraform"
   description   = "java_codebuild_project created via terraform"
   build_timeout = "5"
-  service_role  = arn:aws:iam::053883564770:role/service-role/codebuild-codebuild-java-application-service-role
+  service_role  = "arn:aws:iam::053883564770:role/service-role/codebuild-codebuild-java-application-service-role"
+
 
   artifacts {
     type = "NO_ARTIFACTS"
@@ -15,7 +20,7 @@ resource "aws_codebuild_project" "codebuild-java-app-via-terraform" {
 
   cache {
     type     = "S3"
-    location = rajesh-codebuild-cache
+    location = aws_s3_bucket.codebuild-cache.bucket
   }
 
   environment {
@@ -44,13 +49,13 @@ resource "aws_codebuild_project" "codebuild-java-app-via-terraform" {
 
     s3_logs {
       status   = "ENABLED"
-      location = "${aws_s3_bucket.example.id}/build-log"
+      location = "${aws_s3_bucket.codebuild-cache.id}/build-log"
     }
   }
 
   source {
     type            = "GITHUB"
-    location        = "https://github.com/mitchellh/packer.git"
+    location        = "https://github.com/rajeshjohn/codebuild-terraform.git"
     git_clone_depth = 1
 
     git_submodules_config {
@@ -59,3 +64,28 @@ resource "aws_codebuild_project" "codebuild-java-app-via-terraform" {
   }
 
   source_version = "master"
+}
+
+resource "aws_iam_policy" "cloudlogstreampolicy" {
+ name = "my-policy"
+
+ policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "logs:*"
+            ],
+            "Effect": "Allow",
+            "Resource": "*"
+        }
+    ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "my-policy-attach" {
+  role = "codebuild-codebuild-java-application-service-role"
+  policy_arn = "${aws_iam_policy.cloudlogstreampolicy.arn}"
+}
